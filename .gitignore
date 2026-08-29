@@ -13,9 +13,13 @@ Desktop.ini
 *.tmp
 *.png
 
+# PWA 图标需纳入版本控制（例外规则）
+!icons/*.png
+
 # ---- 依赖目录（如未来引入构建工具）----
 node_modules/
 dist/
 
 # ---- 本机个人文档（不上传）----
 Git安装与GitHub上传指南.md
+tools/

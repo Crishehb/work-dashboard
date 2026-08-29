@@ -1665,6 +1665,13 @@ function init() {
 
   renderAll();
   syncOnLoad(); // 异步拉取云端最新数据（已配置同步码时）
+
+  // PWA：注册 Service Worker（离线缓存；仅安全环境 https/localhost 生效，失败不影响使用）
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 }
 
 init();
