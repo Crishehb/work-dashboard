@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>工作看板 · Work Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ===== 顶栏 ===== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 class="logo">📋 工作看板</h1>
+      <span class="today-date" id="todayDate"></span>
+    </div>
+    <div class="topbar-right">
+      <!-- 视图切换 -->
+      <div class="view-switch" id="viewSwitch">
+        <button class="vs-btn active" data-view="card" title="卡片视图">▦ 卡片</button>
+        <button class="vs-btn" data-view="list" title="列表视图">☰ 列表</button>
+      </div>
+      <button class="btn btn-primary" id="btnAddTask" title="新建独立任务（不属于任何项目）；选中项目时默认归入该项目">＋ 新建任务</button>
+      <button class="btn btn-ghost" id="btnImport" title="从 Excel/网页表格复制后粘贴，自动识别导入">📋 粘贴导入</button>
+      <button class="btn btn-ghost" id="btnAddProject">＋ 新建项目</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- ===== 侧栏：总览 / 项目分组 / 独立任务分组 ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-title">NAVIGATION · 导航</div>
+      <ul class="project-list" id="projectList"></ul>
+    </aside>
+
+    <!-- ===== 主区域 ===== -->
+    <main class="main">
+      <!-- 数据概览（随选中的项目/任务变化） -->
+      <div class="stats-row" id="statsRow"></div>
+
+      <!-- 任务详情（选中任务时显示，管理子任务） -->
+      <section class="panel hidden" id="taskDetailPanel">
+        <div class="panel-head">
+          <span class="panel-title">📌 任务详情 · <span id="detailTitle"></span></span>
+          <span class="panel-sub" id="detailMeta"></span>
+        </div>
+        <ul class="subtask-list" id="subtaskList"></ul>
+        <div class="subtask-add">
+          <input type="text" id="subtaskInput" placeholder="输入子任务后按回车添加" maxlength="60" />
+        </div>
+      </section>
+
+      <!-- 时间轴：按选择显示（总览=全部，项目/任务=单条），支持日/周/月/年切换 -->
+      <section class="panel timeline-panel">
+        <div class="panel-head">
+          <span class="panel-title">🗓️ 时间轴</span>
+          <div class="tl-switch" id="tlSwitch">
+            <button class="tl-btn" data-scale="day" title="近 2 周视野">日</button>
+            <button class="tl-btn" data-scale="week" title="近 12 周视野">周</button>
+            <button class="tl-btn active" data-scale="month" title="近 1 年视野">月</button>
+            <button class="tl-btn" data-scale="year" title="近 3 年视野">年</button>
+          </div>
+          <span class="panel-sub" id="timelineRange"></span>
+        </div>
+        <div class="timeline-body" id="timelineBody"></div>
+      </section>
+
+      <!-- 主内容：卡片视图（按阶段分列） -->
+      <section class="panel board-panel" id="cardView">
+        <div class="panel-head">
+          <span class="panel-title">任务阶段</span>
+          <span class="panel-sub">拖拽卡片调整阶段 · 单击优先级快速切换 · 双击改标题</span>
+        </div>
+        <div class="board" id="board"></div>
+      </section>
+
+      <!-- 主内容：列表视图 -->
+      <section class="panel list-panel hidden" id="listView">
+        <div class="panel-head">
+          <span class="panel-title">任务列表</span>
+          <span class="panel-sub">所有修改即时保存</span>
+        </div>
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th style="width:34px"></th>
+              <th>任务</th>
+              <th style="width:130px">项目</th>
+              <th style="width:110px">阶段</th>
+              <th style="width:90px">优先级</th>
+              <th style="width:130px">截止时间</th>
+              <th style="width:70px">操作</th>
+            </tr>
+          </thead>
+          <tbody id="taskTableBody"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <!-- ===== 右栏：今日待办 + 即将到期（备忘录式快速记录） ===== -->
+    <aside class="rightbar">
+      <section class="panel today-panel">
+        <div class="panel-head">
+          <span class="panel-title">⭐ 今日待办 <span class="badge" id="todayCount">0</span></span>
+        </div>
+        <div class="today-add">
+          <input type="text" id="todayAddInput" placeholder="随手记，回车加入今日待办" maxlength="60" />
+        </div>
+        <ul class="today-list" id="todayList"></ul>
+      </section>
+
+      <section class="panel upcoming-panel">
+        <div class="panel-head">
+          <span class="panel-title">⏰ 即将到期<span class="panel-sub" style="margin-left:6px">7 天内</span></span>
+        </div>
+        <ul class="today-list" id="upcomingList"></ul>
+      </section>
+    </aside>
+  </div>
+
+  <!-- ===== 新建/编辑任务弹窗（轻量表单，仅新建时使用） ===== -->
+  <div class="modal-mask hidden" id="taskModal">
+    <div class="modal">
+      <div class="modal-title" id="taskModalTitle">新建任务</div>
+      <div class="form-row">
+        <label>任务名称</label>
+        <input type="text" id="fTitle" placeholder="要做什么？" maxlength="60" />
+      </div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>归属项目</label>
+          <select id="fProject"></select>
+        </div>
+        <div class="form-row">
+          <label>优先级</label>
+          <select id="fPriority">
+            <option value="high">🔴 高（紧急重要）</option>
+            <option value="mid" selected>🟡 中（重要不紧急）</option>
+            <option value="low">🟢 低（一般事项）</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>阶段</label>
+          <select id="fPhase">
+            <option value="plan">规划</option>
+            <option value="exec" selected>执行</option>
+            <option value="monitor">监控</option>
+            <option value="done">完成</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>截止时间</label>
+          <input type="date" id="fDue" />
+        </div>
+      </div>
+      <div class="form-row form-check">
+        <label><input type="checkbox" id="fToday" /> 加入今日待办</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnTaskCancel">取消</button>
+        <button class="btn btn-primary" id="btnTaskSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 粘贴导入弹窗（自动识别表格信息） ===== -->
+  <div class="modal-mask hidden" id="importModal">
+    <div class="modal modal-wide">
+      <div class="modal-title">📋 粘贴导入 · 自动识别表格信息</div>
+      <p class="import-tip">
+        从 Excel / WPS / 网页表格复制内容后，在下方按 <b>Ctrl + V</b> 粘贴，
+        系统将自动识别 <b>任务标题、时间节点（截止时间）、优先级、阶段及其他附带信息</b>，预览确认后一键导入。
+      </p>
+      <textarea id="importText" rows="6" placeholder="在此粘贴表格内容（支持 Excel 制表符表格、网页表格，也支持手动输入，每行一条任务，列用逗号或空格分隔）"></textarea>
+      <div class="import-preview hidden" id="importPreview">
+        <div class="form-row">
+          <label>默认所属项目（无法自动匹配到已有项目时使用）</label>
+          <select id="importProject"></select>
+        </div>
+        <div class="import-table-wrap">
+          <table class="task-table">
+            <thead>
+              <tr>
+                <th>任务标题</th>
+                <th style="width:110px">截止时间</th>
+                <th style="width:80px">优先级</th>
+                <th style="width:80px">阶段</th>
+                <th style="width:180px">其他信息</th>
+              </tr>
+            </thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <span class="import-count" id="importCount"></span>
+        <button class="btn btn-ghost" id="btnImportCancel">取消</button>
+        <button class="btn btn-primary" id="btnImportSave">确认导入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 新建项目弹窗 ===== -->
+  <div class="modal-mask hidden" id="projectModal">
+    <div class="modal">
+      <div class="modal-title">新建项目</div>
+      <div class="form-row">
+        <label>项目名称</label>
+        <input type="text" id="pName" placeholder="项目叫什么？" maxlength="30" />
+      </div>
+      <div class="form-grid">
+        <div class="form-row">
+          <label>开始日期</label>
+          <input type="date" id="pStart" />
+        </div>
+        <div class="form-row">
+          <label>结束日期</label>
+          <input type="date" id="pEnd" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnProjectCancel">取消</button>
+        <button class="btn btn-primary" id="btnProjectSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
