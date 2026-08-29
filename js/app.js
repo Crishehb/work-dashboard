@@ -138,12 +138,13 @@ function isValidState(d) {
   return d && Array.isArray(d.projects) && Array.isArray(d.tasks);
 }
 
-/** 数据规范化：无效项目归属转为独立任务，补齐子任务数组（兼容旧版本数据） */
+/** 数据规范化：无效项目归属转为独立任务，补齐子任务数组与倒计时数组（兼容旧版本数据） */
 function normalizeState(data) {
   data.tasks.forEach(t => {
     if (t.projectId && !data.projects.some(p => p.id === t.projectId)) t.projectId = null;
     if (!Array.isArray(t.subtasks)) t.subtasks = [];
   });
+  if (!Array.isArray(data.countdowns)) data.countdowns = [];
   return data;
 }
 
@@ -191,6 +192,9 @@ function seedData() {
       { id: uid(), projectId: null, title: '整理本周周报', priority: 'mid', phase: 'exec', due: offsetDate(1), today: false, finished: false },
       { id: uid(), projectId: null, title: '预定团队会议室', priority: 'low', phase: 'plan', due: offsetDate(2), today: false, finished: false },
     ],
+    countdowns: [
+      { id: uid(), name: '2027 元旦', target: '2027-01-01' },
+    ],
   };
 }
 
@@ -230,10 +234,12 @@ function selectedProject() {
 function renderAll() {
   renderHeaderDate();
   renderStats();
+  renderCalendar();
   renderSidebar();
   renderTimeline();
   renderToday();
   renderUpcoming();
+  renderCountdowns();
   renderBoard();
   renderList();
   renderTaskDetail();
@@ -1043,8 +1049,141 @@ function bindProjectModal() {
   };
 }
 
-// 点击遮罩 / Esc 关闭弹窗
+// ============================================================
+//  侧栏迷你日历：月视图，截止日用优先级色圆点标记，支持翻月
+// ============================================================
+let calCursor = new Date(); // 当前显示的月份（取 1 号）
+
+function renderCalendar() {
+  const y = calCursor.getFullYear(), m = calCursor.getMonth();
+  const startWeek = new Date(y, m, 1).getDay();          // 1 号是星期几（0=周日）
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const todayStr = offsetDate(0);
+
+  // 按日期聚合未完成任务的截止（用于彩色圆点 + 悬停提示）
+  const dueMap = {};
+  state.tasks.forEach(t => {
+    if (t.due && t.phase !== 'done') (dueMap[t.due] = dueMap[t.due] || []).push(t);
+  });
+
+  let cells = '';
+  const total = Math.ceil((startWeek + daysInMonth) / 7) * 7;
+  for (let i = 0; i < total; i++) {
+    const dayNum = i - startWeek + 1;
+    if (dayNum < 1 || dayNum > daysInMonth) { cells += '<span class="mc-cell mc-blank"></span>'; continue; }
+    const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    const week = new Date(y, m, dayNum).getDay();
+    const dues = dueMap[key] || [];
+    const dots = dues.slice(0, 3).map(t => `<i class="mc-dot p-${t.priority}"></i>`).join('');
+    const tip = dues.length ? ` title="${escapeHtml(dues.map(t => t.title).join('、'))}"` : '';
+    cells += `<span class="mc-cell${key === todayStr ? ' mc-today' : ''}${week === 0 || week === 6 ? ' mc-weekend' : ''}${dues.length ? ' mc-has' : ''}"${tip}>${dayNum}<span class="mc-dots">${dots}</span></span>`;
+  }
+
+  $('#miniCal').innerHTML = `
+    <div class="mc-head">
+      <button class="mc-nav" data-cal="prev" title="上个月">‹</button>
+      <span class="mc-title">📅 ${y} 年 ${m + 1} 月</span>
+      <button class="mc-nav" data-cal="next" title="下个月">›</button>
+    </div>
+    <div class="mc-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+    <div class="mc-grid">${cells}</div>`;
+}
+
+function bindCalendar() {
+  $('#miniCal').addEventListener('click', e => {
+    const btn = e.target.closest('.mc-nav');
+    if (!btn) return;
+    calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + (btn.dataset.cal === 'next' ? 1 : -1), 1);
+    renderCalendar();
+  });
+}
+
+// ============================================================
+//  右栏倒计时：输入名称+目标日期创建，逐秒跳动，数据随云同步
+// ============================================================
+function renderCountdowns() {
+  const list = state.countdowns || [];
+  $('#cdCount').textContent = list.length;
+  const ul = $('#cdList');
+  if (!list.length) {
+    ul.innerHTML = '<div class="empty">⏳ 输入名称和目标日期即可创建</div>';
+    return;
+  }
+  ul.innerHTML = list.map(c => `
+    <li class="cd-item" data-id="${c.id}">
+      <div class="cd-info">
+        <span class="cd-name">${escapeHtml(c.name)}</span>
+        <span class="cd-date">🎯 ${c.target}</span>
+      </div>
+      <div class="cd-right">
+        <span class="cd-days"></span>
+        <span class="cd-clock"></span>
+      </div>
+      <button class="cd-del" data-id="${c.id}" title="删除倒计时">✕</button>
+    </li>`).join('');
+  cdTick();
+}
+
+/** 逐秒刷新倒计时数字（只改文本，不重新渲染列表） */
+function cdTick() {
+  document.querySelectorAll('.cd-item').forEach(li => {
+    const c = (state.countdowns || []).find(x => x.id === li.dataset.id);
+    if (!c) return;
+    const diff = new Date(c.target + 'T00:00:00') - Date.now();
+    const days = li.querySelector('.cd-days');
+    const clock = li.querySelector('.cd-clock');
+    if (diff <= 0) {
+      const past = Math.floor(-diff / 86400000);
+      days.textContent = past === 0 ? '🎉 已到达' : `已过 ${past} 天`;
+      days.className = 'cd-days ' + (past === 0 ? 'cd-now' : 'cd-past');
+      clock.textContent = '';
+      return;
+    }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor(diff % 86400000 / 3600000);
+    const mi = Math.floor(diff % 3600000 / 60000);
+    const s = Math.floor(diff % 60000 / 1000);
+    days.textContent = `剩 ${d} 天`;
+    days.className = 'cd-days' + (d === 0 ? ' cd-urgent' : '');
+    clock.textContent = `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  });
+}
+
+function bindCountdowns() {
+  const add = () => {
+    const name = $('#cdNameInput').value.trim();
+    const date = $('#cdDateInput').value;
+    if (!name) { $('#cdNameInput').focus(); return; }
+    if (!date) { $('#cdDateInput').focus(); return; }
+    if (!state.countdowns) state.countdowns = [];
+    state.countdowns.push({ id: uid(), name, target: date });
+    $('#cdNameInput').value = '';
+    save(); renderCountdowns();
+    $('#cdNameInput').focus();
+  };
+  $('#btnCdAdd').onclick = add;
+  $('#cdNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  $('#cdList').addEventListener('click', e => {
+    const btn = e.target.closest('.cd-del');
+    if (!btn) return;
+    state.countdowns = (state.countdowns || []).filter(c => c.id !== btn.dataset.id);
+    save(); renderCountdowns();
+  });
+  $('#cdDateInput').value = offsetDate(0);
+  setInterval(cdTick, 1000);
+}
+
+// 点击遮罩 / Esc 关闭弹窗；给所有弹窗右上角统一注入 ✕ 关闭按钮
 function bindModalDismiss() {
+  document.querySelectorAll('.modal').forEach(modal => {
+    if (modal.querySelector('.modal-close')) return;
+    const btn = document.createElement('button');
+    btn.className = 'modal-close';
+    btn.title = '关闭';
+    btn.textContent = '✕';
+    btn.addEventListener('click', () => modal.closest('.modal-mask').classList.add('hidden'));
+    modal.appendChild(btn);
+  });
   document.querySelectorAll('.modal-mask').forEach(mask => {
     mask.addEventListener('click', e => {
       if (e.target === mask) mask.classList.add('hidden');
@@ -1477,6 +1616,8 @@ function init() {
   bindImportModal();
   bindTaskDetail();
   bindTodayEvents();
+  bindCalendar();
+  bindCountdowns();
   bindTimelineScale();
   bindSyncModal();
   bindFeedback();

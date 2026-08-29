@@ -31,6 +31,8 @@
     <!-- ===== 侧栏：总览 / 项目分组 / 独立任务分组 ===== -->
     <aside class="sidebar">
       <div class="sidebar-title">🧭 NAVIGATION · 导航</div>
+      <!-- 迷你日历：月视图，截止日彩色圆点标记 -->
+      <div class="mini-cal" id="miniCal"></div>
       <ul class="project-list" id="projectList"></ul>
     </aside>
 
@@ -115,6 +117,19 @@
           <span class="panel-title">⏰ 即将到期<span class="panel-sub" style="margin-left:6px">7 天内</span></span>
         </div>
         <ul class="today-list" id="upcomingList"></ul>
+      </section>
+
+      <!-- 倒计时栏：输入名称+目标日期即可创建，逐秒跳动 -->
+      <section class="panel countdown-panel">
+        <div class="panel-head">
+          <span class="panel-title">⏳ 倒计时 <span class="badge" id="cdCount">0</span></span>
+        </div>
+        <div class="cd-add">
+          <input type="text" id="cdNameInput" placeholder="名称，如：发薪日" maxlength="20" />
+          <input type="date" id="cdDateInput" title="目标日期" />
+          <button class="btn btn-primary cd-add-btn" id="btnCdAdd" title="添加倒计时">＋</button>
+        </div>
+        <ul class="cd-list" id="cdList"></ul>
       </section>
     </aside>
   </div>
