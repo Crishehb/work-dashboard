@@ -1096,6 +1096,45 @@ input, select, textarea { font-family: inherit; }
 .sync-status.err { color: var(--overdue); background: #fef2f2; }
 .sync-status.ok { color: var(--low); background: #f0fdf4; }
 
+/* ============ 意见反馈：右下角悬浮按钮 ============ */
+.fab-feedback {
+  position: fixed;
+  right: 22px;
+  bottom: 26px;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #7c5cf0);
+  color: #fff;
+  font-size: 20px;
+  box-shadow: 0 4px 16px rgba(79, 110, 247, .4);
+  z-index: 60;
+  transition: transform .18s, box-shadow .18s;
+}
+.fab-feedback:hover {
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 6px 22px rgba(79, 110, 247, .5);
+}
+
+/* 反馈输入框（与导入框同风格） */
+#fbContent {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  resize: vertical;
+  line-height: 1.6;
+  background: #fbfcfe;
+}
+#fbContent:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, .12);
+}
+
 /* ============ 响应式 ============ */
 @media (max-width: 1400px) {
   .rightbar { width: 240px; }

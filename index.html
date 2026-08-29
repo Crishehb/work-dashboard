@@ -250,6 +250,30 @@
     </div>
   </div>
 
+  <!-- ===== 意见反馈：右下角悬浮入口 ===== -->
+  <button class="fab-feedback" id="btnFeedback" title="意见反馈：用法建议、问题报告、新功能心愿">💬</button>
+
+  <!-- ===== 意见反馈弹窗 ===== -->
+  <div class="modal-mask hidden" id="feedbackModal">
+    <div class="modal">
+      <div class="modal-title">💬 意见反馈</div>
+      <p class="import-tip">好用或不好用都欢迎说！您的建议会直达开发者。</p>
+      <div class="form-row">
+        <label>反馈内容</label>
+        <textarea id="fbContent" rows="4" maxlength="500" placeholder="希望增加的功能 / 遇到的问题 / 使用感受…"></textarea>
+      </div>
+      <div class="form-row">
+        <label>联系方式（选填，方便回复您）</label>
+        <input type="text" id="fbContact" placeholder="邮箱 / 微信等" maxlength="60" />
+      </div>
+      <div class="sync-status" id="fbStatus"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnFbCancel">取消</button>
+        <button class="btn btn-primary" id="btnFbSubmit">提交反馈</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/app.js"></script>
 </body>
 </html>

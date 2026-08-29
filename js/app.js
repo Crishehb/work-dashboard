@@ -1414,6 +1414,53 @@ function bindSyncModal() {
 }
 
 // ============================================================
+//  意见反馈（写入 Supabase app_feedback 表，开发者在后台查看）
+// ============================================================
+const FEEDBACK_TABLE = 'app_feedback';
+
+function bindFeedback() {
+  const status = $('#fbStatus');
+  const setStatus = (msg, cls = '') => {
+    status.textContent = msg;
+    status.className = `sync-status${cls ? ' ' + cls : ''}`;
+  };
+
+  $('#btnFeedback').onclick = () => {
+    $('#fbContent').value = '';
+    $('#fbContact').value = '';
+    setStatus('匿名提交即可；留下联系方式可收到回复。');
+    $('#feedbackModal').classList.remove('hidden');
+  };
+
+  $('#btnFbCancel').onclick = () => $('#feedbackModal').classList.add('hidden');
+
+  $('#btnFbSubmit').onclick = async () => {
+    const content = $('#fbContent').value.trim();
+    if (!content) { setStatus('请先填写反馈内容～', 'err'); return; }
+    setStatus('正在提交…');
+    $('#btnFbSubmit').disabled = true;
+    try {
+      const res = await fetch(`${CLOUD_URL}/rest/v1/${FEEDBACK_TABLE}`, {
+        method: 'POST',
+        headers: { ...cloudHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          contact: $('#fbContact').value.trim() || null,
+        }),
+      });
+      if (res.status !== 201 && res.status !== 200) throw new Error(`HTTP ${res.status}`);
+      setStatus('提交成功，感谢您的反馈！❤️', 'ok');
+      $('#fbContent').value = '';
+      $('#fbContact').value = '';
+    } catch (e) {
+      setStatus(`提交失败（${e.message}），请稍后重试或直接联系开发者。`, 'err');
+    } finally {
+      $('#btnFbSubmit').disabled = false;
+    }
+  };
+}
+
+// ============================================================
 //  初始化
 // ============================================================
 function init() {
@@ -1432,6 +1479,7 @@ function init() {
   bindTodayEvents();
   bindTimelineScale();
   bindSyncModal();
+  bindFeedback();
   bindModalDismiss();
 
   renderAll();
