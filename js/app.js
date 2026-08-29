@@ -418,8 +418,11 @@ function renderTimeline() {
   $('#timelineRange').textContent = `${fmtDate(new Date(min))} ~ ${fmtDate(new Date(max))}`;
 
   // 日期刻度与网格线（按粒度均分）
+  // 小屏自适应：绘图区太窄时按比例减少刻度数，避免日期文字互相重叠；窗口缩放后重新渲染即可恢复
+  const plotW = body.clientWidth - 150;
+  const step = plotW > 0 ? Math.max(1, Math.ceil(cfg.ticks / Math.floor(plotW / 60))) : 1;
   let axis = '<div class="tl-axis">', grid = '';
-  for (let i = 0; i <= cfg.ticks; i++) {
+  for (let i = 0; i <= cfg.ticks; i += step) {
     const f = i / cfg.ticks;
     axis += `<span class="tl-tick" style="left:${leftOf(f)}">${cfg.fmt(new Date(min + span * f))}</span>`;
     grid += `<div class="tl-gridline" style="left:${leftOf(f)}"></div>`;
@@ -1672,6 +1675,13 @@ function init() {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+
+  // 窗口尺寸变化（如手机横竖屏切换）后重算时间轴刻度，防止刻度密度与宽度不匹配；防抖避免频繁重绘
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => renderTimeline(), 200);
+  });
 }
 
 init();
