@@ -1352,4 +1352,27 @@ input, select, textarea { font-family: inherit; }
   .board { grid-template-columns: 1fr; }
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .rightbar { flex-direction: column; }
+  /* 顶栏改为自动换行，避免按钮撑破固定高度 */
+  .topbar { height: auto; flex-wrap: wrap; padding: 10px 14px; gap: 8px; }
+  .topbar-right { flex-wrap: wrap; }
+  .layout { padding: 14px 14px 30px; }
+}
+
+/* ============ 小屏手机专项优化（≤ 640px） ============ */
+@media (max-width: 640px) {
+  /* 禁止页面横向滚动：任何元素超宽只影响自身滚动条，不拉乱整页 */
+  body { overflow-x: hidden; }
+  .btn { padding: 7px 11px; font-size: 12px; }
+  .today-date { display: none; }
+  .panel { padding: 14px; }
+  .stats-row { gap: 8px; }
+  .stat-card { padding: 10px 12px; }
+  /* 列表视图：表格横向滑动而不是撑破页面 */
+  .list-panel { overflow-x: auto; }
+  .task-table { min-width: 620px; }
+  .import-table-wrap { overflow-x: auto; }
+  /* 倒计时添加行自适应 */
+  .cd-add { flex-wrap: wrap; }
+  .cd-add input[type="date"] { flex: 1; width: auto; }
+  .modal { width: calc(100vw - 24px); padding: 18px; }
 }
