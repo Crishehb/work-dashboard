@@ -839,6 +839,22 @@ input, select, textarea { font-family: inherit; }
 }
 .cd-del:hover { color: #ef4444; }
 
+/* 任务优先级圆点（与看板/日历配色一致） */
+.cd-pri {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.cd-pri.p-high { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, .14); }
+.cd-pri.p-mid { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .14); }
+.cd-pri.p-low { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .14); }
+/* 项目/手动倒计时类型小标 */
+.cd-badge { flex-shrink: 0; font-size: 12px; line-height: 1; }
+/* 任务/项目自动项：可点击定位 */
+.cd-item.cd-link { cursor: pointer; }
+.cd-item.cd-link:hover { border-color: rgba(79, 110, 247, .45); background: #f3f6ff; }
+
 .today-item {
   display: flex;
   align-items: center;

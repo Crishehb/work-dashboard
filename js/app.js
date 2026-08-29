@@ -1099,18 +1099,49 @@ function bindCalendar() {
 }
 
 // ============================================================
-//  右栏倒计时：输入名称+目标日期创建，逐秒跳动，数据随云同步
+//  右栏倒计时：设了截止日期的任务/项目自动进入 + 手动创建，
+//  按到期时间升序（最近的排最前），逐秒跳动，数据随云同步
 // ============================================================
+
+/** 合并倒计时条目：任务截止日（未完成）+ 项目结束日 + 手动倒计时 */
+function countdownEntries() {
+  const items = [];
+  state.tasks.forEach(t => {
+    if (t.due && t.phase !== 'done') {
+      items.push({ key: 't-' + t.id, name: t.title, target: t.due, kind: 'task', priority: t.priority, sel: { type: 'task', id: t.id } });
+    }
+  });
+  state.projects.forEach(p => {
+    if (p.end) {
+      items.push({ key: 'p-' + p.id, name: p.name, target: p.end, kind: 'project', sel: { type: 'project', id: p.id } });
+    }
+  });
+  (state.countdowns || []).forEach(c => {
+    items.push({ key: 'c-' + c.id, name: c.name, target: c.target, kind: 'custom', delId: c.id });
+  });
+  // 目标日期近的排前面；同日期按名称稳定排序
+  items.sort((a, b) => a.target.localeCompare(b.target) || a.name.localeCompare(b.name));
+  return items;
+}
+
 function renderCountdowns() {
-  const list = state.countdowns || [];
+  const list = countdownEntries();
   $('#cdCount').textContent = list.length;
   const ul = $('#cdList');
   if (!list.length) {
-    ul.innerHTML = '<div class="empty">⏳ 输入名称和目标日期即可创建</div>';
+    ul.innerHTML = '<div class="empty">⏳ 设置了截止日期的任务/项目会自动出现在这里</div>';
     return;
   }
-  ul.innerHTML = list.map(c => `
-    <li class="cd-item" data-id="${c.id}">
+  ul.innerHTML = list.map(c => {
+    // 任务显示优先级圆点（与看板配色一致），项目/手动显示类型小标
+    const badge = c.kind === 'task'
+      ? `<i class="cd-pri p-${c.priority}" title="${{ high: '高优先级', mid: '中优先级', low: '低优先级' }[c.priority]}"></i>`
+      : c.kind === 'project' ? '<span class="cd-badge" title="项目结束日">📁</span>' : '<span class="cd-badge" title="手动添加">🔖</span>';
+    const del = c.delId ? `<button class="cd-del" data-id="${c.delId}" title="删除该倒计时">✕</button>` : '';
+    const selAttr = c.sel ? ` data-sel="${c.sel.type}:${c.sel.id}" title="点击定位到对应${c.kind === 'task' ? '任务' : '项目'}"` : '';
+    return `
+    <li class="cd-item${c.sel ? ' cd-link' : ''}" data-key="${c.key}" data-target="${c.target}"${selAttr}>
+      ${badge}
       <div class="cd-info">
         <span class="cd-name">${escapeHtml(c.name)}</span>
         <span class="cd-date">🎯 ${c.target}</span>
@@ -1119,17 +1150,16 @@ function renderCountdowns() {
         <span class="cd-days"></span>
         <span class="cd-clock"></span>
       </div>
-      <button class="cd-del" data-id="${c.id}" title="删除倒计时">✕</button>
-    </li>`).join('');
+      ${del}
+    </li>`;
+  }).join('');
   cdTick();
 }
 
 /** 逐秒刷新倒计时数字（只改文本，不重新渲染列表） */
 function cdTick() {
   document.querySelectorAll('.cd-item').forEach(li => {
-    const c = (state.countdowns || []).find(x => x.id === li.dataset.id);
-    if (!c) return;
-    const diff = new Date(c.target + 'T00:00:00') - Date.now();
+    const diff = new Date(li.dataset.target + 'T00:00:00') - Date.now();
     const days = li.querySelector('.cd-days');
     const clock = li.querySelector('.cd-clock');
     if (diff <= 0) {
@@ -1164,10 +1194,20 @@ function bindCountdowns() {
   $('#btnCdAdd').onclick = add;
   $('#cdNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
   $('#cdList').addEventListener('click', e => {
-    const btn = e.target.closest('.cd-del');
-    if (!btn) return;
-    state.countdowns = (state.countdowns || []).filter(c => c.id !== btn.dataset.id);
-    save(); renderCountdowns();
+    // 手动倒计时可删除；任务/项目自动项跟随源数据（删任务/清截止日即消失）
+    const del = e.target.closest('.cd-del');
+    if (del) {
+      state.countdowns = (state.countdowns || []).filter(c => c.id !== del.dataset.id);
+      save(); renderCountdowns();
+      return;
+    }
+    // 点击任务/项目倒计时 → 定位到对应项目/任务视图
+    const li = e.target.closest('.cd-item');
+    if (li && li.dataset.sel) {
+      const [type, id] = li.dataset.sel.split(':');
+      selection = { type, id };
+      renderAll();
+    }
   });
   $('#cdDateInput').value = offsetDate(0);
   setInterval(cdTick, 1000);
