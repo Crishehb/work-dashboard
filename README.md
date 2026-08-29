@@ -62,15 +62,21 @@ python -m http.server 8080
 
 ## 🌐 部署方式
 
-本项目是纯静态站点，可托管到任何静态托管服务：
+本项目是纯静态站点，可托管到任何静态托管服务。
 
-### GitHub Pages
-1. 将仓库推送到 GitHub
-2. 仓库 Settings → Pages → Source 选择 `main` 分支 / `root`
+**当前线上地址（Netlify）**：<https://resplendent-gelato-8fe680.netlify.app>
+
+Netlify 已绑定 GitHub 仓库，每次推送代码后自动重新部署，无需手动操作。
+
+### Netlify（当前使用）
+1. `app.netlify.com` 用 GitHub 登录 → Add new site → Import an existing project
+2. 选择本仓库，部署设置全部默认 → Deploy site
+3. 注意：若站点返回 401，到 Project configuration → General → Visitor access 将可见性改为 Public
+
+### GitHub Pages（备用）
+1. 将仓库推送到 GitHub（仓库必须为 Public，私有仓库会停用 Pages）
+2. 仓库 Settings → Pages → Source 选择 `Deploy from a branch`，分支选 `main` / `root` 并保存
 3. 稍等片刻即可通过 `https://<用户名>.github.io/<仓库名>/` 访问
-
-### Vercel / Netlify
-导入本仓库即可自动部署，无需任何配置。
 
 ## ☁️ 多设备云同步（电脑 / 平板 / 手机同一份数据）
 
