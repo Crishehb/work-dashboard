@@ -1,6 +1,6 @@
 /* ============================================================
    工作看板 · 核心逻辑
-   数据持久化：localStorage（刷新不丢失）
+   数据持久化：localStorage 本地保存 + Supabase 云端同步（可选）
    核心原则：计划调整零负担 —— 拖拽改阶段、单击改优先级、
              双击改标题、内联控件改时间，全部 1~2 步完成
    ============================================================ */
@@ -26,6 +26,15 @@ const COL_COLORS = { plan: '#8b5cf6', exec: '#4f6ef7', monitor: '#f59e0b', done:
 const STORE_KEY = 'workboard_data_v1';
 const VIEW_KEY = 'workboard_view_v1';
 const TL_SCALE_KEY = 'workboard_tlscale_v1';
+const SYNC_KEY = 'workboard_sync_v1';          // 云同步配置 {code, lastSync}
+const LOCAL_UPDATED_KEY = 'workboard_updated_v1'; // 本地数据最后更新时间（多设备比新旧用）
+
+// ---------------- 云同步（Supabase）配置 ----------------
+// 已接入用户的 Supabase 项目；publishable key 为官方定义的客户端公开密钥，可安全置于前端；
+// 数据隔离靠用户自设的同步码（等同密码）
+const CLOUD_URL = 'https://euxefuoxiubuvgufjyem.supabase.co';
+const CLOUD_KEY = 'sb_publishable_-1dbt8eTvJ5T5C4eHRo3wA_vYAGdOUK';
+const CLOUD_TABLE = 'workboard_data';
 
 /** 时间轴粒度：以今天为中心的时间窗口宽度 + 刻度数/格式 */
 const TL_SCALES = {
@@ -97,9 +106,42 @@ function escapeHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ---------------- 持久化 ----------------
+// ---------------- 持久化（本地 + 云端） ----------------
+let syncConf = (() => {
+  try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; }
+  catch (e) { return {}; }
+})();
+let suppressPush = false;  // 采纳云端数据时不回推，避免无谓请求
+let pushTimer = null;
+
+/** 同步是否可用：云服务参数 + 用户同步码缺一不可 */
+function cloudReady() { return !!(CLOUD_URL && CLOUD_KEY && syncConf.code); }
+
 function save() {
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  localStorage.setItem(LOCAL_UPDATED_KEY, String(Date.now()));
+  scheduleCloudPush();
+}
+
+/** 防抖推送：停止操作 1.5 秒后才写云端，避免频繁请求 */
+function scheduleCloudPush() {
+  if (!cloudReady() || suppressPush) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => cloudPush().catch(() => {}), 1500);
+}
+
+/** 数据结构校验（云端拉回的数据需先验证） */
+function isValidState(d) {
+  return d && Array.isArray(d.projects) && Array.isArray(d.tasks);
+}
+
+/** 数据规范化：无效项目归属转为独立任务，补齐子任务数组（兼容旧版本数据） */
+function normalizeState(data) {
+  data.tasks.forEach(t => {
+    if (t.projectId && !data.projects.some(p => p.id === t.projectId)) t.projectId = null;
+    if (!Array.isArray(t.subtasks)) t.subtasks = [];
+  });
+  return data;
 }
 
 function load() {
@@ -107,13 +149,8 @@ function load() {
   if (raw) {
     try {
       const data = JSON.parse(raw);
-      if (data && Array.isArray(data.projects) && Array.isArray(data.tasks)) {
-        state = data;
-        // 数据迁移：无效项目归属转为独立任务，补齐子任务数组（兼容旧版本数据）
-        state.tasks.forEach(t => {
-          if (t.projectId && !state.projects.some(p => p.id === t.projectId)) t.projectId = null;
-          if (!Array.isArray(t.subtasks)) t.subtasks = [];
-        });
+      if (isValidState(data)) {
+        state = normalizeState(data);
         return;
       }
     } catch (e) { /* 数据损坏时回退到示例数据 */ }
@@ -1255,6 +1292,125 @@ function bindImportModal() {
 }
 
 // ============================================================
+//  云同步（Supabase）
+// ============================================================
+function cloudHeaders() {
+  return { apikey: CLOUD_KEY, Authorization: `Bearer ${CLOUD_KEY}` };
+}
+
+/** 拉取云端当前同步码对应的数据；无数据返回 null */
+async function cloudPull() {
+  const url = `${CLOUD_URL}/rest/v1/${CLOUD_TABLE}?sync_code=eq.${encodeURIComponent(syncConf.code)}&select=data,updated_at`;
+  const res = await fetch(url, { headers: cloudHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const rows = await res.json();
+  return rows.length ? rows[0] : null;
+}
+
+/** 把本地全量数据写入云端（按同步码覆盖更新） */
+async function cloudPush() {
+  if (!cloudReady()) return;
+  const res = await fetch(`${CLOUD_URL}/rest/v1/${CLOUD_TABLE}`, {
+    method: 'POST',
+    headers: { ...cloudHeaders(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({ sync_code: syncConf.code, data: state, updated_at: new Date().toISOString() }),
+  });
+  if (res.status !== 201 && res.status !== 200) throw new Error(`HTTP ${res.status}`);
+  syncConf.lastSync = Date.now();
+  localStorage.setItem(SYNC_KEY, JSON.stringify(syncConf));
+}
+
+/** 云端数据采纳：验证后替换本地（不回推，不丢数据） */
+function adoptCloudData(row) {
+  if (!isValidState(row.data)) throw new Error('云端数据格式异常');
+  suppressPush = true;
+  state = normalizeState(row.data);
+  save();
+  suppressPush = false;
+  renderAll();
+}
+
+/** 启动时合并：云端与本地比时间戳，新者为准，保证多设备最终一致 */
+async function syncOnLoad() {
+  if (!cloudReady()) return;
+  try {
+    const row = await cloudPull();
+    const localTime = parseInt(localStorage.getItem(LOCAL_UPDATED_KEY) || '0', 10);
+    if (!row) {
+      if (localTime) await cloudPush();      // 云端无数据 → 本地推上去建底
+      return;
+    }
+    const cloudTime = Date.parse(row.updated_at) || 0;
+    if (cloudTime > localTime) adoptCloudData(row);   // 云端更新 → 采纳
+    else if (localTime > cloudTime) await cloudPush(); // 本地更新 → 推上去
+  } catch (e) { /* 网络异常时先用本地数据，下次操作再同步 */ }
+}
+
+/** 同步设置弹窗：同步码管理 + 连接/断开 */
+function bindSyncModal() {
+  const status = $('#syncStatus');
+  const setStatus = (msg, cls = '') => {
+    status.textContent = msg;
+    status.className = `sync-status${cls ? ' ' + cls : ''}`;
+  };
+
+  $('#btnSync').onclick = () => {
+    $('#syncCode').value = syncConf.code || '';
+    if (!CLOUD_URL || !CLOUD_KEY) {
+      setStatus('云服务尚未配置：请将 Supabase 的 Project URL 和 anon key 提供给开发者填入代码后启用。');
+    } else if (syncConf.code) {
+      setStatus(syncConf.lastSync
+        ? `已连接 · 上次同步 ${new Date(syncConf.lastSync).toLocaleString()}`
+        : '已连接 · 等待首次同步', 'ok');
+    } else {
+      setStatus('尚未设置同步码：点「生成」或自行输入，所有设备填同一个码即可共享数据。');
+    }
+    $('#syncModal').classList.remove('hidden');
+  };
+
+  // 生成随机同步码（去掉易混淆字符，4 位一组）
+  $('#btnGenCode').onclick = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 12; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    $('#syncCode').value = code.match(/.{1,4}/g).join('-');
+  };
+
+  $('#btnSyncCancel').onclick = () => $('#syncModal').classList.add('hidden');
+
+  // 断开：只清本机同步码，不碰云端数据，本地数据保留
+  $('#btnSyncOff').onclick = () => {
+    syncConf = {};
+    localStorage.removeItem(SYNC_KEY);
+    $('#syncCode').value = '';
+    setStatus('已断开，本设备今后仅使用本地数据。');
+  };
+
+  // 保存并连接：新设备接入入口 —— 云端已有数据时一律以云端为准，
+  // 避免新浏览器自动生成的示例数据覆盖真实数据；云端无数据才用本机建底
+  $('#btnSyncSave').onclick = async () => {
+    const code = $('#syncCode').value.trim();
+    if (!CLOUD_URL || !CLOUD_KEY) { setStatus('云服务未配置，暂无法连接。', 'err'); return; }
+    if (code.length < 6) { setStatus('同步码至少 6 位，请点「生成」或加长输入。', 'err'); return; }
+    syncConf.code = code;
+    localStorage.setItem(SYNC_KEY, JSON.stringify(syncConf));
+    setStatus('正在连接云端…');
+    try {
+      const row = await cloudPull();
+      if (row) {
+        adoptCloudData(row);
+        setStatus('连接成功！已载入云端最新数据。', 'ok');
+      } else {
+        await cloudPush();
+        setStatus('连接成功！已用本设备内容创建云端数据。', 'ok');
+      }
+    } catch (e) {
+      setStatus(`连接失败（${e.message}）：请确认数据库表已创建成功后重试。`, 'err');
+    }
+  };
+}
+
+// ============================================================
 //  初始化
 // ============================================================
 function init() {
@@ -1272,9 +1428,11 @@ function init() {
   bindTaskDetail();
   bindTodayEvents();
   bindTimelineScale();
+  bindSyncModal();
   bindModalDismiss();
 
   renderAll();
+  syncOnLoad(); // 异步拉取云端最新数据（已配置同步码时）
 }
 
 init();

@@ -21,6 +21,7 @@
       </div>
       <button class="btn btn-primary" id="btnAddTask" title="新建独立任务（不属于任何项目）；选中项目时默认归入该项目">＋ 新建任务</button>
       <button class="btn btn-ghost" id="btnImport" title="从 Excel/网页表格复制后粘贴，自动识别导入">📋 粘贴导入</button>
+      <button class="btn btn-ghost" id="btnSync" title="多设备云同步设置">☁️ 同步</button>
       <button class="btn btn-ghost" id="btnAddProject">＋ 新建项目</button>
     </div>
   </header>
@@ -220,6 +221,30 @@
       <div class="modal-actions">
         <button class="btn btn-ghost" id="btnProjectCancel">取消</button>
         <button class="btn btn-primary" id="btnProjectSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 云同步设置弹窗（多设备同一份数据） ===== -->
+  <div class="modal-mask hidden" id="syncModal">
+    <div class="modal">
+      <div class="modal-title">☁️ 多设备云同步</div>
+      <p class="import-tip">
+        所有设备填写 <b>相同的同步码</b> 即可共享同一份数据：
+        任何一台设备修改后，其他设备刷新页面即可看到最新内容。
+      </p>
+      <div class="form-row">
+        <label>同步码（相当于数据密码，请自己记住）</label>
+        <div class="sync-code-row">
+          <input type="text" id="syncCode" placeholder="输入或生成同步码" maxlength="40" />
+          <button class="btn btn-ghost" id="btnGenCode" title="生成随机同步码">🎲 生成</button>
+        </div>
+      </div>
+      <div class="sync-status" id="syncStatus"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnSyncOff" title="清除本机同步码，停止同步（本地数据保留）">断开同步</button>
+        <button class="btn btn-ghost" id="btnSyncCancel">取消</button>
+        <button class="btn btn-primary" id="btnSyncSave">保存并连接</button>
       </div>
     </div>
   </div>
