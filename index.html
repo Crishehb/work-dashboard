@@ -4,13 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>工作看板 · Work Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <!-- ===== 顶栏 ===== -->
   <header class="topbar">
     <div class="topbar-left">
-      <h1 class="logo">📋 工作看板</h1>
+      <h1 class="logo"><span class="logo-ico">📋</span>工作看板</h1>
       <span class="today-date" id="todayDate"></span>
     </div>
     <div class="topbar-right">
@@ -19,17 +20,17 @@
         <button class="vs-btn active" data-view="card" title="卡片视图">▦ 卡片</button>
         <button class="vs-btn" data-view="list" title="列表视图">☰ 列表</button>
       </div>
-      <button class="btn btn-primary" id="btnAddTask" title="新建独立任务（不属于任何项目）；选中项目时默认归入该项目">＋ 新建任务</button>
+      <button class="btn btn-primary" id="btnAddTask" title="新建独立任务（不属于任何项目）；选中项目时默认归入该项目">✏️ 新建任务</button>
       <button class="btn btn-ghost" id="btnImport" title="从 Excel/网页表格复制后粘贴，自动识别导入">📋 粘贴导入</button>
       <button class="btn btn-ghost" id="btnSync" title="多设备云同步设置">☁️ 同步</button>
-      <button class="btn btn-ghost" id="btnAddProject">＋ 新建项目</button>
+      <button class="btn btn-ghost" id="btnAddProject" title="新建项目，任务可归入其下">📁 新建项目</button>
     </div>
   </header>
 
   <div class="layout">
     <!-- ===== 侧栏：总览 / 项目分组 / 独立任务分组 ===== -->
     <aside class="sidebar">
-      <div class="sidebar-title">NAVIGATION · 导航</div>
+      <div class="sidebar-title">🧭 NAVIGATION · 导航</div>
       <ul class="project-list" id="projectList"></ul>
     </aside>
 
@@ -68,7 +69,7 @@
       <!-- 主内容：卡片视图（按阶段分列） -->
       <section class="panel board-panel" id="cardView">
         <div class="panel-head">
-          <span class="panel-title">任务阶段</span>
+          <span class="panel-title">📊 任务阶段</span>
           <span class="panel-sub">拖拽卡片调整阶段 · 单击优先级快速切换 · 双击改标题</span>
         </div>
         <div class="board" id="board"></div>
@@ -77,7 +78,7 @@
       <!-- 主内容：列表视图 -->
       <section class="panel list-panel hidden" id="listView">
         <div class="panel-head">
-          <span class="panel-title">任务列表</span>
+          <span class="panel-title">☰ 任务列表</span>
           <span class="panel-sub">所有修改即时保存</span>
         </div>
         <table class="task-table">
@@ -121,7 +122,7 @@
   <!-- ===== 新建/编辑任务弹窗（轻量表单，仅新建时使用） ===== -->
   <div class="modal-mask hidden" id="taskModal">
     <div class="modal">
-      <div class="modal-title" id="taskModalTitle">新建任务</div>
+      <div class="modal-title" id="taskModalTitle">✏️ 新建任务</div>
       <div class="form-row">
         <label>任务名称</label>
         <input type="text" id="fTitle" placeholder="要做什么？" maxlength="60" />
@@ -203,7 +204,7 @@
   <!-- ===== 新建项目弹窗 ===== -->
   <div class="modal-mask hidden" id="projectModal">
     <div class="modal">
-      <div class="modal-title">新建项目</div>
+      <div class="modal-title">📁 新建项目</div>
       <div class="form-row">
         <label>项目名称</label>
         <input type="text" id="pName" placeholder="项目叫什么？" maxlength="30" />

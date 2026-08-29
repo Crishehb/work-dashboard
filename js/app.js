@@ -23,6 +23,9 @@ const PROJECT_COLORS = ['#4f6ef7', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '
 /** 阶段列颜色（看板列头圆点） */
 const COL_COLORS = { plan: '#8b5cf6', exec: '#4f6ef7', monitor: '#f59e0b', done: '#22c55e' };
 
+/** 阶段列图标（看板列头小图标） */
+const PHASE_ICON = { plan: '📝', exec: '🚀', monitor: '👁️', done: '✅' };
+
 const STORE_KEY = 'workboard_data_v1';
 const VIEW_KEY = 'workboard_view_v1';
 const TL_SCALE_KEY = 'workboard_tlscale_v1';
@@ -306,7 +309,7 @@ function renderSidebar() {
       </div>
     </li>
     <li class="sb-section">
-      <span>项目</span>
+      <span>📁 项目</span>
       <button class="sb-add" data-act="add-project" title="新建项目">＋</button>
     </li>`;
 
@@ -339,7 +342,7 @@ function renderSidebar() {
   const orphans = state.tasks.filter(t => !t.projectId);
   html += `
     <li class="sb-section">
-      <span>独立任务</span>
+      <span>📌 独立任务</span>
       <button class="sb-add" data-act="add-standalone" title="新建独立任务">＋</button>
     </li>
     <ul class="pj-tasks standalone-list">${orphans.map(taskRowHtml).join('') ||
@@ -543,7 +546,7 @@ function renderBoard() {
       <div class="board-col" data-phase="${ph.key}">
         <div class="col-head">
           <span class="col-dot" style="background:${COL_COLORS[ph.key]}"></span>
-          <span>${ph.name}</span>
+          <span>${PHASE_ICON[ph.key]} ${ph.name}</span>
           <span class="col-count">${colTasks.length}</span>
         </div>
         <div class="col-body">${cards || '<div class="empty">拖拽任务到这里</div>'}</div>
@@ -973,7 +976,7 @@ function bindTimelineScale() {
  * 弹窗内仍可切换归属（含“独立任务”选项）
  */
 function openTaskModal(pid) {
-  $('#taskModalTitle').textContent = pid ? '新建任务（归属项目）' : '新建独立任务';
+  $('#taskModalTitle').textContent = pid ? '✏️ 新建任务（归属项目）' : '✏️ 新建独立任务';
   $('#fTitle').value = '';
   $('#fDue').value = '';
   $('#fToday').checked = false;
