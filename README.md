@@ -64,7 +64,7 @@ python -m http.server 8080
 
 本项目是纯静态站点，可托管到任何静态托管服务。
 
-**当前线上地址（Netlify）**：<https://resplendent-gelato-8fe680.netlify.app>
+**当前线上地址（Netlify）**：<https://gongzuokanban.netlify.app>
 
 Netlify 已绑定 GitHub 仓库，每次推送代码后自动重新部署，无需手动操作。
 
