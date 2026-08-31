@@ -37,9 +37,11 @@
 body {
   font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", -apple-system, sans-serif;
   background:
-    radial-gradient(1200px 500px at 80% -10%, rgba(79, 110, 247, .07), transparent),
-    radial-gradient(900px 420px at 8% -8%, rgba(16, 185, 129, .05), transparent),
+    radial-gradient(1200px 520px at 82% -10%, rgba(79, 110, 247, .09), transparent),
+    radial-gradient(900px 420px at 8% -8%, rgba(16, 185, 129, .06), transparent),
+    radial-gradient(1000px 600px at 96% 108%, rgba(139, 92, 246, .06), transparent),
     var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-size: 14px;
   min-height: 100vh;
@@ -489,7 +491,23 @@ input, select, textarea { font-family: inherit; }
   justify-content: space-between;
   margin-bottom: 14px;
 }
-.panel-title { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 面板标题品牌渐变竖条，提升精致感 */
+.panel-title::before {
+  content: '';
+  width: 4px;
+  height: 15px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #4f6ef7, #8b5cf6);
+  flex-shrink: 0;
+}
 .panel-sub { font-size: 12px; color: var(--text-faint); }
 
 .badge {
@@ -521,7 +539,7 @@ input, select, textarea { font-family: inherit; }
   gap: 12px;
   transition: transform .18s;
 }
-.stat-card:hover { transform: translateY(-2px); }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 24, 40, .09); }
 .stat-icon {
   width: 40px;
   height: 40px;
@@ -532,11 +550,11 @@ input, select, textarea { font-family: inherit; }
   font-size: 18px;
   flex-shrink: 0;
 }
-.si-total { background: #eef2ff; }
-.si-active { background: #e6f6ff; }
-.si-done { background: #e8f9ef; }
-.si-today { background: #fff4e0; }
-.si-overdue { background: #fee9e9; }
+.si-total { background: linear-gradient(135deg, #eef2ff, #dfe6ff); }
+.si-active { background: linear-gradient(135deg, #e6f6ff, #d6edff); }
+.si-done { background: linear-gradient(135deg, #e8f9ef, #d7f3e3); }
+.si-today { background: linear-gradient(135deg, #fff4e0, #ffe9c7); }
+.si-overdue { background: linear-gradient(135deg, #fee9e9, #fddcdc); }
 .stat-num {
   font-size: 20px;
   font-weight: 700;
@@ -561,9 +579,20 @@ input, select, textarea { font-family: inherit; }
 }
 .subtask-item:hover { border-color: var(--border); background: #fafbfe; }
 .sub-check { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
-.sub-title { flex: 1; font-size: 13px; }
+.sub-body { flex: 1; min-width: 0; }
+.sub-title { display: block; font-size: 13px; }
+/* 子任务详情（对标题的补充说明，灰色小字显示在标题下方） */
+.sub-note {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.subtask-item.finished .sub-note { color: #c3cad6; }
 .subtask-item.finished .sub-title { text-decoration: line-through; color: var(--text-faint); }
-.sub-del {
+.sub-del,
+.sub-edit-btn {
   border: none;
   background: transparent;
   color: #cbd5e1;
@@ -573,8 +602,24 @@ input, select, textarea { font-family: inherit; }
   opacity: 0;
   transition: all .15s;
 }
-.subtask-item:hover .sub-del { opacity: 1; }
+.subtask-item:hover .sub-del,
+.subtask-item:hover .sub-edit-btn { opacity: 1; }
 .sub-del:hover { color: var(--overdue); background: #fee2e2; }
+.sub-edit-btn:hover { color: var(--primary); background: var(--primary-soft); }
+
+/* 子任务内联编辑态（点 ✎ 进入：标题 + 详情两个输入框，失焦/回车保存） */
+.subtask-item.sub-editing { border-color: var(--primary); background: #fbfcff; }
+.sub-edit { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.sub-edit input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+.sub-edit input:focus { outline: none; border-color: var(--primary); }
+
+.subtask-add { display: flex; flex-direction: column; gap: 8px; }
 
 .subtask-add input {
   width: 100%;
@@ -932,9 +977,14 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .05);
 }
 .col-dot { width: 8px; height: 8px; border-radius: 50%; }
 .col-count {
@@ -958,8 +1008,9 @@ input, select, textarea { font-family: inherit; }
   transition: box-shadow .18s, transform .18s, border-color .18s;
 }
 .task-card:hover {
-  box-shadow: 0 4px 14px rgba(16, 24, 40, .08);
-  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 24, 40, .1);
+  transform: translateY(-2px);
+  border-color: #d6ddf0;
 }
 .task-card.selected {
   border-color: var(--primary);
@@ -1324,6 +1375,112 @@ input, select, textarea { font-family: inherit; }
   box-shadow: 0 0 0 3px rgba(79, 110, 247, .12);
 }
 
+/* ============ 任务详情文本框（对任务标题的补充说明） ============ */
+.task-note-box { margin: 2px 0 12px; }
+.task-note-box label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.task-note-box label .panel-sub { font-weight: 400; margin-left: 4px; }
+.task-note-box textarea {
+  width: 100%;
+  border: 1px dashed #d3dae6;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  background: #fbfcfe;
+  resize: vertical;
+  transition: all .15s;
+}
+.task-note-box textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  border-style: solid;
+  background: #fff;
+}
+
+/* ============ 完成记录（已完成事项归档 + 周/月/年统计） ============ */
+.done-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.done-stat {
+  background: linear-gradient(135deg, #f6f8ff, #eef2ff);
+  border: 1px solid #e5eaff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.done-num {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(120deg, #3b5bdb, #7c5cf0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.done-cap { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+.done-section {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+  margin: 14px 0 8px;
+}
+.done-list { list-style: none; }
+.done-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  transition: all .15s;
+}
+.done-item:hover { border-color: var(--border); background: #fafbfe; }
+.done-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e8f9ef;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.done-check-pj { font-size: 11px; }
+.done-body { flex: 1; min-width: 0; }
+.done-title { font-size: 13px; }
+.done-note {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.done-date {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.done-panel .empty { padding: 12px 0; }
+
+/* ============ 面板入场动画（仅静态容器，内容重绘不会重复播放） ============ */
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.topbar, .sidebar, .main > .panel, .stats-row, .rightbar > .panel {
+  animation: panelIn .4s ease both;
+}
+
 /* ============ 响应式 ============ */
 @media (max-width: 1400px) {
   .rightbar { width: 240px; }
@@ -1375,4 +1532,9 @@ input, select, textarea { font-family: inherit; }
   .cd-add { flex-wrap: wrap; }
   .cd-add input[type="date"] { flex: 1; width: auto; }
   .modal { width: calc(100vw - 24px); padding: 18px; }
+  /* 完成记录：窄屏下自动换行，日期靠右 */
+  .done-item { flex-wrap: wrap; }
+  .done-date { margin-left: auto; }
+  .done-stats { gap: 8px; }
+  .done-stat { padding: 10px 8px; }
 }

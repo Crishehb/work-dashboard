@@ -29,6 +29,7 @@ const PHASE_ICON = { plan: '📝', exec: '🚀', monitor: '👁️', done: '✅'
 const STORE_KEY = 'workboard_data_v1';
 const VIEW_KEY = 'workboard_view_v1';
 const TL_SCALE_KEY = 'workboard_tlscale_v1';
+const DONE_RANGE_KEY = 'workboard_donernage_v1';  // 完成记录统计范围：week | month | year | all
 const SYNC_KEY = 'workboard_sync_v1';          // 云同步配置 {code, lastSync}
 const LOCAL_UPDATED_KEY = 'workboard_updated_v1'; // 本地数据最后更新时间（多设备比新旧用）
 
@@ -49,8 +50,10 @@ const TL_SCALES = {
 
 // ---------------- 全局状态 ----------------
 let state = { projects: [], tasks: [] };
-let viewMode = 'card';      // card | list
+let viewMode = 'card';      // card | list | done（完成记录）
 let tlScale = 'month';      // 时间轴粒度：day | week | month | year
+let doneRange = 'month';    // 完成记录统计范围：本周/本月/今年/全部（持久化；默认月，避免周初打开时空白）
+let editingSubId = null;    // 任务详情面板中正在内联编辑的子任务 id
 // 选择模型：总览随选择变化 —— {type:'all'} | {type:'project',id} | {type:'task',id}
 let selection = { type: 'all' };
 const expandedProjects = new Set(); // 侧栏中展开任务列表的项目
@@ -103,6 +106,20 @@ function hexToRgba(hex, a) {
 }
 
 function getProject(id) { return state.projects.find(p => p.id === id); }
+
+/** 统一切换任务阶段：进入完成时记录完成时间（供完成记录统计），离开完成时清除 */
+function applyPhase(task, phase) {
+  task.phase = phase;
+  task.finished = phase === 'done';
+  if (phase === 'done') { if (!task.doneAt) task.doneAt = new Date().toISOString(); }
+  else delete task.doneAt;
+}
+
+/** 任务的完成日期（yyyy-MM-dd）：优先取完成时间戳；旧数据无时间戳时退回截止日 */
+function effDoneDate(t) {
+  if (t.doneAt) return t.doneAt.slice(0, 10);
+  return t.phase === 'done' && t.due ? t.due : '';
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -175,15 +192,24 @@ function seedData() {
     tasks: [
       {
         id: uid(), projectId: p1, title: '首页视觉稿评审', priority: 'high', phase: 'exec', due: offsetDate(0), today: true, finished: false,
+        note: '重点过首页首屏与移动端适配方案，邀请设计、前端、后端一起参会，会前收集各方反馈',
         subtasks: [
           { id: uid(), title: '收集各方反馈意见', finished: true },
           { id: uid(), title: '输出评审结论并归档', finished: false },
         ],
       },
-      { id: uid(), projectId: p1, title: '需求文档终稿确认', priority: 'high', phase: 'done',   due: offsetDate(-2), today: false, finished: true },
+      {
+        id: uid(), projectId: p1, title: '需求文档终稿确认', priority: 'high', phase: 'done', due: offsetDate(-2), today: false, finished: true,
+        doneAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+        note: '与产品确认第 3 章指标口径后定稿，文档已归档至团队知识库',
+      },
       { id: uid(), projectId: p1, title: '前端页面切图开发', priority: 'mid',  phase: 'exec',   due: offsetDate(6), today: true,  finished: false },
       { id: uid(), projectId: p1, title: '上线前兼容性测试', priority: 'mid',  phase: 'plan',   due: offsetDate(12), today: false, finished: false },
       { id: uid(), projectId: p2, title: '登录模块接口联调', priority: 'high', phase: 'exec',   due: offsetDate(-1), today: true,  finished: false },
+      {
+        id: uid(), projectId: p2, title: '项目立项材料准备', priority: 'mid', phase: 'done', due: offsetDate(-4), today: false, finished: true,
+        doneAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+      },
       { id: uid(), projectId: p2, title: 'UI 走查与问题跟踪', priority: 'low', phase: 'monitor', due: offsetDate(8), today: false, finished: false },
       { id: uid(), projectId: p2, title: '产品原型第二轮评审', priority: 'mid', phase: 'plan',  due: offsetDate(4), today: false, finished: false },
       { id: uid(), projectId: p3, title: '指标口径梳理', priority: 'mid', phase: 'plan', due: offsetDate(5), today: false, finished: false },
@@ -243,6 +269,7 @@ function renderAll() {
   renderBoard();
   renderList();
   renderTaskDetail();
+  renderDoneView();
 }
 
 function renderHeaderDate() {
@@ -725,8 +752,7 @@ function bindBoardEvents() {
       col.classList.remove('drag-over');
       const task = state.tasks.find(t => t.id === e.dataTransfer.getData('text/plain'));
       if (task && task.phase !== col.dataset.phase) {
-        task.phase = col.dataset.phase;
-        if (task.phase === 'done') task.finished = true;
+        applyPhase(task, col.dataset.phase);
         save(); renderAll();
       }
     });
@@ -744,12 +770,8 @@ function bindListEvents() {
     if (!task) return;
 
     switch (el.dataset.act) {
-      case 'check':    task.finished = el.checked;
-                       if (el.checked) task.phase = 'done';
-                       break;
-      case 'phase':    task.phase = el.value;
-                       task.finished = el.value === 'done';
-                       break;
+      case 'check':    applyPhase(task, el.checked ? 'done' : 'exec'); break;
+      case 'phase':    applyPhase(task, el.value); break;
       case 'priority': task.priority = el.value; break;
       case 'due':      task.due = el.value || ''; break;
     }
@@ -875,17 +897,34 @@ function renderTaskDetail() {
     `${proj ? '项目：' + proj.name : '独立任务'} · ${PHASE_NAME[t.phase]}阶段 · ${PRIORITY_NAME[t.priority]}优先级` +
     (sp.total ? ` · 子任务 ${sp.done}/${sp.total}` : '');
 
+  // 任务详情输入框：每次重渲染同步当前值（提交在 focusout 里处理）
+  $('#taskNoteInput').value = t.note || '';
+
   const list = $('#subtaskList');
   const subs = t.subtasks || [];
-  list.innerHTML = subs.length ? subs.map(s => `
+  list.innerHTML = subs.length ? subs.map(s => {
+    // 内联编辑态：标题 + 详情两个输入框，失焦/回车保存（点 ✎ 触发）
+    if (s.id === editingSubId) return `
+      <li class="subtask-item sub-editing">
+        <div class="sub-edit">
+          <input type="text" class="sub-edit-title" value="${escapeHtml(s.title)}" maxlength="60" placeholder="子任务名称" autofocus />
+          <input type="text" class="sub-edit-note" value="${escapeHtml(s.note || '')}" maxlength="200" placeholder="详情（选填）" />
+        </div>
+      </li>`;
+    return `
     <li class="subtask-item ${s.finished ? 'finished' : ''}">
       <input type="checkbox" class="sub-check" data-sid="${s.id}" ${s.finished ? 'checked' : ''}>
-      <span class="sub-title">${escapeHtml(s.title)}</span>
+      <div class="sub-body">
+        <span class="sub-title">${escapeHtml(s.title)}</span>
+        ${s.note ? `<div class="sub-note">${escapeHtml(s.note)}</div>` : ''}
+      </div>
+      <button class="sub-edit-btn" data-sedit="${s.id}" title="编辑子任务名称与详情">✎</button>
       <button class="sub-del" data-sdel="${s.id}" title="删除子任务">✕</button>
-    </li>`).join('') : '<div class="empty">暂无子任务，在下方输入后回车添加</div>';
+    </li>`;
+  }).join('') : '<div class="empty">暂无子任务，在下方输入后回车添加</div>';
 }
 
-/** 任务详情面板事件：子任务勾选/新增/删除 */
+/** 任务详情面板事件：任务详情文本、子任务勾选/新增/内联编辑/删除 */
 function bindTaskDetail() {
   const panel = $('#taskDetailPanel');
   panel.addEventListener('change', e => {
@@ -896,15 +935,51 @@ function bindTaskDetail() {
     s.finished = e.target.checked;
     save(); renderAll();
   });
+  // 任务详情（对标题的补充说明）：失焦自动保存，有变化才重绘避免打断输入
+  $('#taskNoteInput').addEventListener('focusout', e => {
+    const t = selectedTask();
+    if (!t) return;
+    const v = e.target.value.trim();
+    if (v === (t.note || '')) return;
+    t.note = v;
+    save(); renderAll();
+  });
   panel.addEventListener('click', e => {
+    const edit = e.target.closest('[data-sedit]');
+    if (edit) { editingSubId = edit.dataset.sedit; renderTaskDetail(); return; }
     const del = e.target.closest('[data-sdel]');
     if (!del) return;
     const t = selectedTask();
     if (!t) return;
     t.subtasks = (t.subtasks || []).filter(x => x.id !== del.dataset.sdel);
+    if (editingSubId === del.dataset.sdel) editingSubId = null;
     save(); renderAll();
   });
-  // 输入子任务后回车添加；全部子任务完成时自动把任务标记完成（再次取消勾选会恢复）
+  // 子任务内联编辑：标题/详情失焦保存；编辑框内回车直接保存并退出编辑态；Esc 放弃修改；仅点击面板外部时自动退出编辑态（避免两个输入框互相打断）
+  panel.addEventListener('focusout', e => {
+    if (!e.target.classList.contains('sub-edit-title') && !e.target.classList.contains('sub-edit-note')) return;
+    if (!editingSubId || panel.contains(e.relatedTarget)) return;
+    commitSubEdit();
+  });
+  panel.addEventListener('keydown', e => {
+    const isEditBox = e.target.classList.contains('sub-edit-title') || e.target.classList.contains('sub-edit-note');
+    if (!isEditBox) return;
+    if (e.key === 'Enter') { e.preventDefault(); commitSubEdit(); }
+    if (e.key === 'Escape') { editingSubId = null; renderTaskDetail(); }
+  });
+  function commitSubEdit() {
+    const t = selectedTask();
+    const s = t && (t.subtasks || []).find(x => x.id === editingSubId);
+    const li = panel.querySelector('.sub-editing');
+    editingSubId = null;
+    if (s && li) {
+      const title = li.querySelector('.sub-edit-title').value.trim();
+      const note = li.querySelector('.sub-edit-note').value.trim();
+      if (title) { s.title = title; s.note = note; save(); }
+    }
+    renderAll();
+  }
+  // 输入子任务后回车添加（可同时填写详情）；全部子任务完成时自动把任务标记完成（再次取消勾选会恢复）
   $('#subtaskInput').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     const v = e.target.value.trim();
@@ -912,8 +987,9 @@ function bindTaskDetail() {
     const t = selectedTask();
     if (!t) return;
     t.subtasks = t.subtasks || [];
-    t.subtasks.push({ id: uid(), title: v, finished: false });
+    t.subtasks.push({ id: uid(), title: v, note: $('#subtaskNoteInput').value.trim(), finished: false });
     e.target.value = '';
+    $('#subtaskNoteInput').value = '';
     save(); renderAll();
     $('#subtaskInput').focus();
   });
@@ -935,6 +1011,94 @@ function applyViewMode() {
     b.classList.toggle('active', b.dataset.view === viewMode));
   $('#cardView').classList.toggle('hidden', viewMode !== 'card');
   $('#listView').classList.toggle('hidden', viewMode !== 'list');
+  $('#doneView').classList.toggle('hidden', viewMode !== 'done');
+}
+
+// ============================================================
+//  完成记录：已完成任务/项目的归档与周/月/年统计（全局范围，不随侧栏选择变化）
+// ============================================================
+/** 统计范围对应的起始日期与展示文案：周=本周一、月=本月 1 日、年=今年 1 月 1 日、全部 */
+function donePeriod(range) {
+  const now = new Date();
+  if (range === 'week') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    return { start: fmtDate(d), label: `本周 ${fmtDate(d)} ~ ${todayStr()}` };
+  }
+  if (range === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: fmtDate(d), label: `本月 ${fmtDate(d)} ~ ${todayStr()}` };
+  }
+  if (range === 'year') {
+    const d = new Date(now.getFullYear(), 0, 1);
+    return { start: fmtDate(d), label: `今年 ${fmtDate(d)} ~ ${todayStr()}` };
+  }
+  return { start: '', label: '全部时间' };
+}
+
+function renderDoneView() {
+  if (!$('#doneView') || viewMode !== 'done') return;
+  const { start, label } = donePeriod(doneRange);
+  $('#doneRangeLabel').textContent = label;
+  document.querySelectorAll('#doneRangeSwitch .tl-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === doneRange));
+
+  const inRange = d => !start || d >= start;
+  const doneTasks = state.tasks
+    .filter(t => t.phase === 'done')
+    .map(t => ({ t, d: effDoneDate(t) }))
+    .filter(x => inRange(x.d))
+    .sort((a, b) => b.d.localeCompare(a.d));
+
+  // 项目完成判定：全部任务完成；完成日 = 各任务完成日的最大值，同样按范围过滤展示与计数（但“全部任务完成”是硬性条件）
+  const doneProjects = state.projects.map(p => {
+    const tasks = state.tasks.filter(t => t.projectId === p.id);
+    if (!tasks.length || !tasks.every(t => t.phase === 'done')) return null;
+    const d = tasks.map(effDoneDate).sort().pop() || '';
+    return { p, d };
+  }).filter(x => x && inRange(x.d));
+
+  const total = state.tasks.length;
+  const doneAll = state.tasks.filter(t => t.phase === 'done').length;
+  $('#doneStats').innerHTML = `
+    <div class="done-stat"><div class="done-num">${doneTasks.length}</div><div class="done-cap">完成任务</div></div>
+    <div class="done-stat"><div class="done-num">${doneProjects.length}</div><div class="done-cap">完成项目</div></div>
+    <div class="done-stat"><div class="done-num">${total ? Math.round(doneAll / total * 100) : 0}%</div><div class="done-cap">累计完成率</div></div>`;
+
+  $('#doneTaskList').innerHTML = doneTasks.length ? doneTasks.slice(0, 100).map(({ t, d }) => {
+    const proj = getProject(t.projectId);
+    return `
+      <li class="done-item">
+        <span class="done-check">✓</span>
+        <div class="done-body">
+          <div class="done-title">${escapeHtml(t.title)}</div>
+          ${t.note ? `<div class="done-note">${escapeHtml(t.note)}</div>` : ''}
+        </div>
+        ${proj ? `<span class="tag tag-project">${escapeHtml(proj.name)}</span>` : '<span class="tag tag-project" style="background:#f0f3f9;color:#8a93a5">独立</span>'}
+        <span class="tag tag-p-${t.priority}">${PRIORITY_NAME[t.priority]}</span>
+        <span class="done-date">${d.slice(5).replace('-', '/')} 完成</span>
+      </li>`;
+  }).join('') : '<li class="empty">本时段暂无完成记录，去把任务拖进「完成」列吧</li>';
+
+  $('#doneProjectList').innerHTML = doneProjects.length ? doneProjects.map(({ p, d }) => `
+    <li class="done-item">
+      <span class="done-check done-check-pj" style="background:${hexToRgba(p.color, .15)};color:${p.color}">📁</span>
+      <div class="done-body">
+        <div class="done-title">${escapeHtml(p.name)}</div>
+        <div class="done-note">${fmtDate(parseDate(p.start))} ~ ${fmtDate(parseDate(p.end))} · 全部任务已完成</div>
+      </div>
+      <span class="done-date">${d ? d.slice(5).replace('-', '/') + ' 完成' : ''}</span>
+    </li>`).join('') : '<li class="empty">本时段暂无完成的项目（项目下全部任务完成即视为项目完成）</li>';
+}
+
+function bindDoneView() {
+  $('#doneRangeSwitch').addEventListener('click', e => {
+    const btn = e.target.closest('[data-range]');
+    if (!btn) return;
+    doneRange = btn.dataset.range;
+    localStorage.setItem(DONE_RANGE_KEY, doneRange);
+    renderDoneView();
+  });
 }
 
 /** 右栏今日待办：勾选完成 + 备忘录式快速录入（回车新建独立今日任务） */
@@ -944,8 +1108,7 @@ function bindTodayEvents() {
     if (!e.target.classList.contains('today-check')) return;
     const task = getTask(e.target.dataset.id);
     if (!task) return;
-    task.finished = e.target.checked;
-    task.phase = e.target.checked ? 'done' : 'exec';
+    applyPhase(task, e.target.checked ? 'done' : 'exec');
     save(); renderAll();
   });
   // 备忘录式录入：随手输入回车即加入今日待办（独立任务，无截止）
@@ -987,6 +1150,7 @@ function bindTimelineScale() {
 function openTaskModal(pid) {
   $('#taskModalTitle').textContent = pid ? '✏️ 新建任务（归属项目）' : '✏️ 新建独立任务';
   $('#fTitle').value = '';
+  $('#fNote').value = '';
   $('#fDue').value = '';
   $('#fToday').checked = false;
   $('#fPriority').value = 'mid';
@@ -1008,17 +1172,21 @@ function bindTaskModal() {
   $('#btnTaskSave').onclick = () => {
     const title = $('#fTitle').value.trim();
     if (!title) { $('#fTitle').focus(); return; }
-    state.tasks.push({
+    const phase = $('#fPhase').value;
+    const task = {
       id: uid(),
       projectId: $('#fProject').value || null,
       title,
+      note: $('#fNote').value.trim(),
       priority: $('#fPriority').value,
-      phase: $('#fPhase').value,
+      phase,
       due: $('#fDue').value || '',
       today: $('#fToday').checked,
-      finished: $('#fPhase').value === 'done',
+      finished: phase === 'done',
       subtasks: [],
-    });
+    };
+    if (phase === 'done') task.doneAt = new Date().toISOString();
+    state.tasks.push(task);
     save(); renderAll();
     $('#taskModal').classList.add('hidden');
   };
@@ -1649,6 +1817,7 @@ function init() {
   load();
   viewMode = localStorage.getItem(VIEW_KEY) || 'card';
   tlScale = localStorage.getItem(TL_SCALE_KEY) || 'month';
+  doneRange = localStorage.getItem(DONE_RANGE_KEY) || 'month';
   applyViewMode();
 
   bindSidebarEvents();
@@ -1662,6 +1831,7 @@ function init() {
   bindCalendar();
   bindCountdowns();
   bindTimelineScale();
+  bindDoneView();
   bindSyncModal();
   bindFeedback();
   bindModalDismiss();

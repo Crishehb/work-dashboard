@@ -26,6 +26,7 @@
       <div class="view-switch" id="viewSwitch">
         <button class="vs-btn active" data-view="card" title="卡片视图">▦ 卡片</button>
         <button class="vs-btn" data-view="list" title="列表视图">☰ 列表</button>
+        <button class="vs-btn" data-view="done" title="已完成事项的记录与统计">🏆 完成记录</button>
       </div>
       <button class="btn btn-primary" id="btnAddTask" title="新建独立任务（不属于任何项目）；选中项目时默认归入该项目">✏️ 新建任务</button>
       <button class="btn btn-ghost" id="btnImport" title="从 Excel/网页表格复制后粘贴，自动识别导入">📋 粘贴导入</button>
@@ -55,8 +56,13 @@
           <span class="panel-sub" id="detailMeta"></span>
         </div>
         <ul class="subtask-list" id="subtaskList"></ul>
+        <div class="task-note-box">
+          <label for="taskNoteInput">📝 任务详情 <span class="panel-sub">对标题的补充说明，失焦自动保存</span></label>
+          <textarea id="taskNoteInput" rows="3" maxlength="500" placeholder="补充说明：背景、要求、链接、注意事项…"></textarea>
+        </div>
         <div class="subtask-add">
           <input type="text" id="subtaskInput" placeholder="输入子任务后按回车添加" maxlength="60" />
+          <input type="text" id="subtaskNoteInput" placeholder="详情（选填，随子任务一起保存）" maxlength="200" />
         </div>
       </section>
 
@@ -105,6 +111,25 @@
           <tbody id="taskTableBody"></tbody>
         </table>
       </section>
+
+      <!-- 主内容：完成记录（已完成任务/项目的归档与周/月/年统计） -->
+      <section class="panel done-panel hidden" id="doneView">
+        <div class="panel-head">
+          <span class="panel-title">🏆 完成记录</span>
+          <div class="tl-switch" id="doneRangeSwitch">
+            <button class="tl-btn active" data-range="week" title="本周一至今">周</button>
+            <button class="tl-btn" data-range="month" title="本月 1 日至今">月</button>
+            <button class="tl-btn" data-range="year" title="今年 1 月 1 日至今">年</button>
+            <button class="tl-btn" data-range="all" title="不限时间">全部</button>
+          </div>
+          <span class="panel-sub" id="doneRangeLabel"></span>
+        </div>
+        <div class="done-stats" id="doneStats"></div>
+        <div class="done-section">✅ 已完成任务</div>
+        <ul class="done-list" id="doneTaskList"></ul>
+        <div class="done-section">📁 已完成项目</div>
+        <ul class="done-list" id="doneProjectList"></ul>
+      </section>
     </main>
 
     <!-- ===== 右栏：今日待办 + 即将到期（备忘录式快速记录） ===== -->
@@ -148,6 +173,10 @@
       <div class="form-row">
         <label>任务名称</label>
         <input type="text" id="fTitle" placeholder="要做什么？" maxlength="60" />
+      </div>
+      <div class="form-row">
+        <label>任务详情（选填）</label>
+        <textarea id="fNote" rows="3" maxlength="500" placeholder="对任务的补充说明：背景、要求、链接、注意事项…"></textarea>
       </div>
       <div class="form-grid">
         <div class="form-row">
